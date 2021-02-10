@@ -1,12 +1,54 @@
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import Slot
 from .serializers import SlotSerializer
+import json, time, math
 
 
 # Create your views here.
+
+parkingLotSize = 10;
+def DBInitializer():
+    for x in range(parkingLotSize):
+        obj1 = Slot.objects.create(slotNo=x+1, isFree=True)
+
+
+def getVisitorIpAddress(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+# Declaring map of ipAddr as a key and queue of request times as value, globally
+myRequests = {}
+timeWindowInSec = 10
+noOfAllowedRequests = 5
+
+def rateLimiter(request):
+    ipAddrOfRequest = getVisitorIpAddress(request)
+    currRequestTime = time.time()
+    currRequestTime = math.trunc(currRequestTime)     # converting time into seconds
+
+    if ipAddrOfRequest in myRequests.keys():
+        while len(myRequests[ipAddrOfRequest])>0 and myRequests[ipAddrOfRequest][0]<=(currRequestTime-timeWindowInSec):
+            myRequests[ipAddrOfRequest].pop(0)
+        if len(myRequests[ipAddrOfRequest])>=noOfAllowedRequests:
+            print('Request rejected')
+        else:
+            print('Request accepted')
+            myRequests[ipAddrOfRequest].append(currRequestTime)
+    else:
+        print('Request accepted')
+        queue = []
+        queue.append(currRequestTime)
+        myRequests[ipAddrOfRequest] = queue
+
+
 
 class SlotViewSet(viewsets.ModelViewSet):
     queryset = Slot.objects.all()
@@ -91,6 +133,7 @@ class SlotViewSet(viewsets.ModelViewSet):
     # To get carNo by slotNo
     @action(detail=False, methods=['POST'])
     def getCarNo(self, request, pk=None):
+        rateLimiter(request)
         if 'slot_no' in request.data:
             enteredSlotNo = request.data['slot_no']
             isSlotPresent = Slot.objects.filter(slotNo=enteredSlotNo).exists()
@@ -109,12 +152,27 @@ class SlotViewSet(viewsets.ModelViewSet):
             resp = {'Message': 'Please provide slot no'}
             return Response(resp, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['POST'])
+    def setLotSize(self, request, pk=None):
+        if 'size' in request.data:
+            global parkingLotSize
+            parkingLotSize = int(request.data['size'])
+            resp = {'Message': 'Parking Lot size has been set successfuly'}
+            return Response(resp, status=status.HTTP_200_OK)
+        else:
+            resp = {'Message': 'Please provide size'}
+            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
 
-
-def DBInitializer():
-    size = 10
-    for x in range(size):
-        obj1 = Slot.objects.create(slotNo=x+1, isFree=True)
-
+    @action(detail=False, methods=['POST'])
+    def setRateLimiterParams(self, request, pk=None):
+        if 'limit' in request.data and 'window' in request.data:
+            global timeWindowInSec, noOfAllowedRequests
+            timeWindowInSec = int(request.data['window'])
+            noOfAllowedRequests = int(request.data['limit'])
+            resp = {'Message': 'Rate Limiter parameters have been set successfuly'}
+            return Response(resp, status=status.HTTP_200_OK)
+        else:
+            resp = {'Message': 'Please provide windowTime and limit'}
+            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
 
 
