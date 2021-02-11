@@ -6,11 +6,12 @@ from rest_framework.decorators import action
 from .models import Slot
 from .serializers import SlotSerializer
 import json, time, math
+from decouple import config
 
 # Create your views here.
 
 # Declaring global variable for size of of parking lot
-parkingLotSize = 10;
+parkingLotSize = config('PARKING_LOT_SIZE')
 def DBInitializer():
     for x in range(parkingLotSize):
         obj1 = Slot.objects.create(slotNo=x+1, isFree=True)
@@ -26,8 +27,8 @@ def getVisitorIpAddress(request):
 
 # Declaring map of ipAddr as a key and queue of request times as value, globally
 requests = {}
-timeWindowInSec = 10
-noOfAllowedRequests = 5
+timeWindowInSec = config('TIME_WINDOW')
+noOfAllowedRequests = config('ALLOWED_REQUESTS')
 
 def rateLimiter(request):
     ipAddrOfRequest = getVisitorIpAddress(request)
@@ -56,6 +57,8 @@ class SlotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['POST'])
     def parkCar(self, request, pk=None):
+        print(timeWindowInSec)
+        print(noOfAllowedRequests)
         if rateLimiter(request) is False:
             jsonResp = {
                 'Message': 'Request rejected.'
@@ -149,6 +152,7 @@ class SlotViewSet(viewsets.ModelViewSet):
             if isCarPresent:
                 allotedSlot = Slot.objects.get(carNo=enteredCarNo)
                 jsonResp = {
+                    'Given car no is' : enteredCarNo,
                     'Allotted slot no is': allotedSlot.slotNo
                 }
                 return JsonResponse(jsonResp, safe=False)
@@ -185,6 +189,7 @@ class SlotViewSet(viewsets.ModelViewSet):
                     return JsonResponse(jsonResp, safe=False)
                 else:
                     jsonResp = {
+                        'Given slot no is' : enteredSlotNo,
                         'Car parked at given slot is': currSlot.carNo
                     }
                     return JsonResponse(jsonResp, safe=False)
