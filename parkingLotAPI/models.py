@@ -4,6 +4,6 @@ from django.db import models
 
 class Slot(models.Model):
     slotNo = models.IntegerField()
-    carNo = models.IntegerField(null=True,db_index=True)
+    carNo = models.CharField(null=True,db_index=True,max_length=24)
     isFree = models.BooleanField(default=True)
 
