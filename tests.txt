@@ -1,0 +1,97 @@
+Parking Lot Backend
+
+Unit Testcases:
+
+1. Park a car
+    	1)  ip(car_no) : 1998
+		     op: 	{
+                       "Message": "Slot has been successfully allotted to car.",
+ 				       "Allotted slot no is": 1
+				    }
+
+         2) ip: 1998
+ 		    op:  {
+		   		    "Message": "Car is already present in the parking lot.",
+				    "Allotted slot no is": 1
+			     }
+
+2. Unpark a car
+  	      1) ip(slot_no) : 1
+             Op: {
+		          "Message": "Car has been successfully unparked"
+	         	  }
+
+          2) ip: 1
+             Op: {
+ 		              "Message": "This slot is already free"
+            	  }
+
+3. Get car no by slot no
+ 		 1) ip(slot_no) : 1
+ 		    op:  {
+   			    	 "Given slot no is": "1",
+			         "Car parked at given slot is": 1998
+			     }
+         2) ip: 2
+	        op: {
+   		        	 "Message": "Entered slot is free"
+			    }
+
+4. Get slot no by car no
+  		1) ip(car_no) : 1998
+ 		   op: {
+    				"Given car no is": "1998",
+			        "Allotted slot no is": 1
+			   }
+        2) ip: 2031
+           op: {
+	                "Message": "Car is not present in the parking lot"
+	           }
+
+
+5. Set parking lot size
+	1) ip(size) : 10
+ 	   op: {
+    			"Message": "Parking Lot size has been set successfully"
+		   }
+
+6. Set Rate Limiter parameters
+        1) ip(window and limit) : 10 and 5
+	       op: {
+		           "Message": "Rate Limiter parameters have been set successfully."
+		       }
+
+
+###Testcases for Rate Limiter
+ -Here window is time in seconds and limit is requestsLimit, so lets say if window=5sec and limit=2
+   then rate limiter will allow first 2 requests  5 sec and it will reject further requests,
+
+Params (window=5sec and limit = 2 ), Op is:
+{
+    "Given slot no is": "1",
+    "Car parked at given slot is": 1998
+}
+{
+    "Given slot no is": "1",
+    "Car parked at given slot is": 1998
+}
+{
+    "Message": "Request rejected."
+}
+{
+    "Message": "Request rejected."
+}
+{
+    "Message": "Request rejected."
+}
+{
+    "Given slot no is": "1",
+    "Car parked at given slot is": 1998
+}
+
+
+Note: In all api’s if input is not given in the request body it will give “Please Enter valid input” message.
+
+
+
+
