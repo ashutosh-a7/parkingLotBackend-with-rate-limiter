@@ -1,4 +1,4 @@
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -7,9 +7,9 @@ from .models import Slot
 from .serializers import SlotSerializer
 import json, time, math
 
-
 # Create your views here.
 
+# Declaring global variable for size of of parking lot
 parkingLotSize = 10;
 def DBInitializer():
     for x in range(parkingLotSize):
@@ -25,7 +25,7 @@ def getVisitorIpAddress(request):
     return ip
 
 # Declaring map of ipAddr as a key and queue of request times as value, globally
-myRequests = {}
+requests = {}
 timeWindowInSec = 10
 noOfAllowedRequests = 5
 
@@ -33,22 +33,22 @@ def rateLimiter(request):
     ipAddrOfRequest = getVisitorIpAddress(request)
     currRequestTime = time.time()
     currRequestTime = math.trunc(currRequestTime)     # converting time into seconds
-
-    if ipAddrOfRequest in myRequests.keys():
-        while len(myRequests[ipAddrOfRequest])>0 and myRequests[ipAddrOfRequest][0]<=(currRequestTime-timeWindowInSec):
-            myRequests[ipAddrOfRequest].pop(0)
-        if len(myRequests[ipAddrOfRequest])>=noOfAllowedRequests:
-            print('Request rejected')
+    if ipAddrOfRequest in requests.keys():
+        while len(requests[ipAddrOfRequest])>0 and requests[ipAddrOfRequest][0]<=(currRequestTime - timeWindowInSec):
+            requests[ipAddrOfRequest].pop(0)
+        if len(requests[ipAddrOfRequest])>=noOfAllowedRequests:
+            #print('Request rejected')
+            return False
         else:
-            print('Request accepted')
-            myRequests[ipAddrOfRequest].append(currRequestTime)
+            #print('Request accepted')
+            requests[ipAddrOfRequest].append(currRequestTime)
+            return True
     else:
-        print('Request accepted')
+        #print('Request accepted')
         queue = []
         queue.append(currRequestTime)
-        myRequests[ipAddrOfRequest] = queue
-
-
+        requests[ipAddrOfRequest] = queue
+        return True
 
 class SlotViewSet(viewsets.ModelViewSet):
     queryset = Slot.objects.all()
@@ -56,23 +56,30 @@ class SlotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['POST'])
     def parkCar(self, request, pk=None):
+        if rateLimiter(request) is False:
+            jsonResp = {
+                'Message': 'Request rejected.'
+            }
+            return JsonResponse(jsonResp, safe=False)
         if 'car_no' in request.data:
             enteredCarNo = request.data['car_no']
             noOfSlots = Slot.objects.all().count()
             if noOfSlots==0:
                 DBInitializer()
-
             isCarPresent = Slot.objects.filter(carNo=enteredCarNo).exists()
             if isCarPresent:
                 allotedSlot = Slot.objects.get(carNo=enteredCarNo)
-                return Response(allotedSlot.slotNo, status=status.HTTP_200_OK)
+                jsonResp = {
+                    'Message':'Car is already present in the parking lot.',
+                    'Allotted slot no is': allotedSlot.slotNo
+                }
+                return JsonResponse(jsonResp, safe=False)
             else:
                 noOfAvailableSlots = Slot.objects.filter(isFree=True).count()
                 if noOfAvailableSlots == 0:
-                    resp = {'Message': 'No Slots available'}
-                    return Response(resp, status=status.HTTP_200_OK)
+                    jsonResp = {'Message': 'No Slots available'}
+                    return JsonResponse(jsonResp, safe=False)
                 else:
-                    #print('slots are available')
                     slots = Slot.objects.filter(isFree=True)
                     allotedSlotNo = slots[0].slotNo
                     availableSlot = Slot.objects.get(slotNo=allotedSlotNo)
@@ -80,88 +87,137 @@ class SlotViewSet(viewsets.ModelViewSet):
                     availableSlot.carNo = enteredCarNo
                     availableSlot.save()
                     allotedSlot = availableSlot.slotNo
-                    return Response(allotedSlot, status=status.HTTP_200_OK)
-
+                    jsonResp = {
+                        'Message': 'Slot has been successfully allotted to car.',
+                        'Allotted slot no is': allotedSlot
+                    }
+                    return JsonResponse(jsonResp, safe=False)
         else:
-            resp = {'Message':'Please provide car no'}
-            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
-
+            jsonResp = {
+                'Message': 'Please provide car no',
+            }
+            return JsonResponse(jsonResp, safe=False)
 
     @action(detail=False, methods=['POST'])
     def unparkCar(self, request, pk=None):
+        if rateLimiter(request) is False:
+            jsonResp = {
+                'Message': 'Request rejected.'
+            }
+            return JsonResponse(jsonResp, safe=False)
         if 'slot_no' in request.data:
             enteredSlotNo = request.data['slot_no']
             isSlotValid = Slot.objects.filter(slotNo=enteredSlotNo).exists()
             if isSlotValid:
                 currSlot = Slot.objects.get(slotNo=enteredSlotNo)
                 if currSlot.isFree:
-                    resp = {'Message': 'This slot is already free'}
-                    return Response(resp, status=status.HTTP_200_OK)
+                    jsonResp = {
+                        'Message': 'This slot is already free',
+                    }
+                    return JsonResponse(jsonResp, safe=False)
                 else:
                     currSlot.isFree = True
                     currSlot.carNo = None
                     currSlot.save()
-                    resp = {'Message': 'Success'}
-                    return Response(resp, status=status.HTTP_200_OK)
+                    jsonResp = {
+                        'Message': 'Car has been successfully unparked'
+                    }
+                    return JsonResponse(jsonResp, safe=False)
             else:
-                resp = {'Message': 'Please enter a valid slot no'}
-                return Response(resp, status=status.HTTP_200_OK)
-
+                jsonResp = {
+                    'Message': 'Please enter a valid slot no.'
+                }
+                return JsonResponse(jsonResp, safe=False)
         else:
-            resp = {'Message': 'Please provide Slot no'}
-            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+            jsonResp = {
+                'Message': 'Please provide slot no.'
+            }
+            return JsonResponse(jsonResp, safe=False)
 
 
     # To get slotNo by carNo
     @action(detail=False, methods=['POST'])
     def getSlotNo(self, request, pk=None):
+        if rateLimiter(request) is False:
+            jsonResp = {
+                'Message': 'Request rejected.'
+            }
+            return JsonResponse(jsonResp, safe=False)
         if 'car_no' in request.data:
             enteredCarNo = request.data['car_no']
             isCarPresent = Slot.objects.filter(carNo=enteredCarNo).exists()
             if isCarPresent:
                 allotedSlot = Slot.objects.get(carNo=enteredCarNo)
-                return Response(allotedSlot.slotNo, status=status.HTTP_200_OK)
+                jsonResp = {
+                    'Allotted slot no is': allotedSlot.slotNo
+                }
+                return JsonResponse(jsonResp, safe=False)
             else:
-                resp = {'Message': 'Car is not present'}
-                return Response(resp, status=status.HTTP_200_OK)
-
+                jsonResp = {
+                    'Message': 'Car is not present in the parking lot'
+                }
+                return JsonResponse(jsonResp, safe=False)
         else:
-            resp = {'Message': 'Please provide car no'}
-            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+            jsonResp = {
+                'Message': 'Please provide car no.'
+            }
+            return JsonResponse(jsonResp, safe=False)
+            #return Response(resp, status=status.HTTP_400_BAD_REQUEST)
 
 
     # To get carNo by slotNo
     @action(detail=False, methods=['POST'])
     def getCarNo(self, request, pk=None):
-        rateLimiter(request)
+        if rateLimiter(request) is False:
+            jsonResp = {
+                'Message': 'Request rejected.'
+            }
+            return JsonResponse(jsonResp, safe=False)
         if 'slot_no' in request.data:
             enteredSlotNo = request.data['slot_no']
             isSlotPresent = Slot.objects.filter(slotNo=enteredSlotNo).exists()
             if isSlotPresent:
                 currSlot = Slot.objects.get(slotNo=enteredSlotNo)
                 if currSlot.isFree:
-                    resp = {'Message': 'Car is not present'}
-                    return Response(resp, status=status.HTTP_200_OK)
+                    jsonResp = {
+                        'Message': 'Entered slot is free'
+                    }
+                    return JsonResponse(jsonResp, safe=False)
                 else:
-                    return Response(currSlot.carNo, status=status.HTTP_200_OK)
-
+                    jsonResp = {
+                        'Car parked at given slot is': currSlot.carNo
+                    }
+                    return JsonResponse(jsonResp, safe=False)
             else:
-                resp = {'Message': 'Please enter a valid slot No'}
-                return Response(resp, status=status.HTTP_200_OK)
+                jsonResp = {
+                    'Message': 'Please enter a valid slot No'
+                }
+                return JsonResponse(jsonResp, safe=False)
         else:
-            resp = {'Message': 'Please provide slot no'}
-            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+            jsonResp = {
+                'Message': 'Please provide slot no.'
+            }
+            return JsonResponse(jsonResp, safe=False)
 
     @action(detail=False, methods=['POST'])
     def setLotSize(self, request, pk=None):
+        if rateLimiter(request) is False:
+            jsonResp = {
+                'Message': 'Request rejected.'
+            }
+            return JsonResponse(jsonResp, safe=False)
         if 'size' in request.data:
             global parkingLotSize
             parkingLotSize = int(request.data['size'])
-            resp = {'Message': 'Parking Lot size has been set successfuly'}
-            return Response(resp, status=status.HTTP_200_OK)
+            jsonResp = {
+                'Message': 'Parking Lot size has been set successfully'
+            }
+            return JsonResponse(jsonResp, safe=False)
         else:
-            resp = {'Message': 'Please provide size'}
-            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+            jsonResp = {
+                'Message': 'Please provide size'
+            }
+            return JsonResponse(jsonResp, safe=False)
 
     @action(detail=False, methods=['POST'])
     def setRateLimiterParams(self, request, pk=None):
@@ -169,10 +225,14 @@ class SlotViewSet(viewsets.ModelViewSet):
             global timeWindowInSec, noOfAllowedRequests
             timeWindowInSec = int(request.data['window'])
             noOfAllowedRequests = int(request.data['limit'])
-            resp = {'Message': 'Rate Limiter parameters have been set successfuly'}
-            return Response(resp, status=status.HTTP_200_OK)
+            jsonResp = {
+                'Message': 'Rate Limiter parameters have been set successfully.'
+            }
+            return JsonResponse(jsonResp, safe=False)
         else:
-            resp = {'Message': 'Please provide windowTime and limit'}
-            return Response(resp, status=status.HTTP_400_BAD_REQUEST)
+            jsonResp = {
+                'Message': 'Please provide windowTime and limit.'
+            }
+            return JsonResponse(jsonResp, safe=False)
 
 

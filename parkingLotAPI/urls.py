@@ -5,7 +5,7 @@ from django.conf.urls import include
 from .views import SlotViewSet
 
 router = routers.DefaultRouter()
-router.register('slots',SlotViewSet)
+router.register('',SlotViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
