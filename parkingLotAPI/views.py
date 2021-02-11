@@ -11,7 +11,7 @@ from decouple import config
 # Create your views here.
 
 # Declaring global variable for size of of parking lot
-parkingLotSize = config('PARKING_LOT_SIZE')
+parkingLotSize = int(config('PARKING_LOT_SIZE'))
 def DBInitializer():
     for x in range(parkingLotSize):
         obj1 = Slot.objects.create(slotNo=x+1, isFree=True)
@@ -27,8 +27,8 @@ def getVisitorIpAddress(request):
 
 # Declaring map of ipAddr as a key and queue of request times as value, globally
 requests = {}
-timeWindowInSec = config('TIME_WINDOW')
-noOfAllowedRequests = config('ALLOWED_REQUESTS')
+timeWindowInSec = int(config('TIME_WINDOW'))
+noOfAllowedRequests = int(config('ALLOWED_REQUESTS'))
 
 def rateLimiter(request):
     ipAddrOfRequest = getVisitorIpAddress(request)
