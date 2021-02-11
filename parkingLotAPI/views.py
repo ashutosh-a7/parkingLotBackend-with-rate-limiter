@@ -8,11 +8,9 @@ from .serializers import SlotSerializer
 import json, time, math
 from decouple import config
 
-# Create your views here.
-
 # Declaring global variable for size of of parking lot
 parkingLotSize = int(config('PARKING_LOT_SIZE'))
-def DBInitializer():
+def dbInitializer():
     for x in range(parkingLotSize):
         obj1 = Slot.objects.create(slotNo=x+1, isFree=True)
 
@@ -57,8 +55,6 @@ class SlotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['POST'])
     def parkCar(self, request, pk=None):
-        print(timeWindowInSec)
-        print(noOfAllowedRequests)
         if rateLimiter(request) is False:
             jsonResp = {
                 'Message': 'Request rejected.'
@@ -68,7 +64,7 @@ class SlotViewSet(viewsets.ModelViewSet):
             enteredCarNo = request.data['car_no']
             noOfSlots = Slot.objects.all().count()
             if noOfSlots==0:
-                DBInitializer()
+                dbInitializer()
             isCarPresent = Slot.objects.filter(carNo=enteredCarNo).exists()
             if isCarPresent:
                 allotedSlot = Slot.objects.get(carNo=enteredCarNo)
@@ -166,8 +162,6 @@ class SlotViewSet(viewsets.ModelViewSet):
                 'Message': 'Please provide car no.'
             }
             return JsonResponse(jsonResp, safe=False)
-            #return Response(resp, status=status.HTTP_400_BAD_REQUEST)
-
 
     # To get carNo by slotNo
     @action(detail=False, methods=['POST'])
